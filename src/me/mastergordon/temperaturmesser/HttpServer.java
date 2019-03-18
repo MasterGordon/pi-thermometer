@@ -23,6 +23,7 @@ public class HttpServer extends NanoHTTPD {
 	private TemperaturMesser temperaturMesser;
 	private static final Pattern PATTERNTEL = Pattern.compile("\\st=\\d*");
 
+
 	public HttpServer(int port, TemperaturMesser temperaturMesser) throws IOException {
 		super(port);
 		this.temperaturMesser = temperaturMesser;
@@ -56,6 +57,7 @@ public class HttpServer extends NanoHTTPD {
 					e.printStackTrace();
 				}
 			}
+
 
 			if (path.split("/").length == 3) {
 				try {
@@ -106,6 +108,72 @@ public class HttpServer extends NanoHTTPD {
 						labels += "\"" + formatter.format(date) + "\",";
 						data1 += "\"" + (temp1 / 1000) + "\",";
 						data2 += "\"" + (temp2 / 1000) + "\",";
+					}
+					labels = labels.substring(0, labels.length() - 1) + "]";
+					data1 = data1.substring(0, data1.length() - 1) + "]";
+					data2 = data2.substring(0, data2.length() - 1) + "]";
+
+					return newFixedLengthResponse("{" + labels + "," + data1 + "," + data2 + "}");
+				} catch (Exception e) {
+
+				}
+			}
+		}
+
+		if (path.split("/")[1].equals("feinstaub")) {
+			if (path.split("/").length == 2) {
+				return newFixedLengthResponse("PM2.5: " + TemperaturMesser.PM25 + "µg/m³<br>PM10: " + TemperaturMesser.PM10+"µg/m³");
+			}
+
+			if (path.split("/").length == 3) {
+				try {
+					String labels = "\"labels\": [ ";
+					String data1 = "\"data1\": [ ";
+					String data2 = "\"data2\": [ ";
+					int dataCount = Integer.parseInt(path.split("/")[2]);
+					Statement stat = temperaturMesser.getConnection().createStatement();
+					String sql = "select * from feinstaub ORDER BY date DESC limit " + dataCount + ";";
+					ResultSet rs = stat.executeQuery(sql);
+					while (rs.next()) {
+						long dateUnformat = rs.getLong("date");
+						double temp1 = rs.getInt("feinstaub1");
+						double temp2 = rs.getInt("feinstaub2");
+						Date date = new Date(dateUnformat);
+						DateFormat formatter = new SimpleDateFormat("dd.MM.yyyy HH:mm.ss");
+						formatter.setTimeZone(TimeZone.getTimeZone("UTC+1"));
+						labels += "\"" + formatter.format(date) + "\",";
+						data1 += "\"" + (temp1) + "\",";
+						data2 += "\"" + (temp2) + "\",";
+					}
+					labels = labels.substring(0, labels.length() - 1) + "]";
+					data1 = data1.substring(0, data1.length() - 1) + "]";
+					data2 = data2.substring(0, data2.length() - 1) + "]";
+
+					return newFixedLengthResponse("{" + labels + "," + data1 + "," + data2 + "}");
+				} catch (Exception e) {
+
+				}
+			}
+
+			if (path.split("/").length == 4) {
+				try {
+					String labels = "\"labels\": [ ";
+					String data1 = "\"data1\": [ ";
+					String data2 = "\"data2\": [ ";
+					Statement stat = temperaturMesser.getConnection().createStatement();
+					String sql = "select * from feinstaub WHERE DATE BETWEEN " + path.split("/")[2] + " AND "
+							+ path.split("/")[3] + " ORDER BY date DESC;";
+					ResultSet rs = stat.executeQuery(sql);
+					while (rs.next()) {
+						long dateUnformat = rs.getLong("date");
+						double temp1 = rs.getInt("feinstaub1");
+						double temp2 = rs.getInt("feinstaub2");
+						Date date = new Date(dateUnformat);
+						DateFormat formatter = new SimpleDateFormat("dd.MM.yyyy HH:mm.ss");
+						formatter.setTimeZone(TimeZone.getTimeZone("CET"));
+						labels += "\"" + formatter.format(date) + "\",";
+						data1 += "\"" + (temp1) + "\",";
+						data2 += "\"" + (temp2) + "\",";
 					}
 					labels = labels.substring(0, labels.length() - 1) + "]";
 					data1 = data1.substring(0, data1.length() - 1) + "]";

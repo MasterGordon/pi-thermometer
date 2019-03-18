@@ -1,6 +1,8 @@
 package me.mastergordon.temperaturmesser;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.sql.Connection;
@@ -31,20 +33,65 @@ public class TemperaturMesser {
 				while (matcherSensor2.find()) {
 					sensorFile2 = sensorFile2.substring(matcherSensor2.start() + 3, matcherSensor2.end());
 				}
-				connection.createStatement()
-				.executeUpdate("insert into temperature values (" + System.currentTimeMillis() + ", "
-						+ sensorFile1 + ", "+sensorFile2+")");
+				connection.createStatement().executeUpdate("insert into temperature values ("
+						+ System.currentTimeMillis() + ", " + sensorFile1 + ", " + sensorFile2 + ")");
 			} catch (IOException | SQLException e) {
 				e.printStackTrace();
 				System.out.println("[WARN] Sensor konnte nicht erreicht werden.");
 			}
+			String feinstaub = getFeinstaub();
+			feinstaub = feinstaub.replaceAll(" ", "");
+			double PM25 = Double.parseDouble(feinstaub.split("X")[0]);
+			double PM10 = Double.parseDouble(feinstaub.split("X")[1]);
 			try {
-				Thread.sleep(1000 * 30);
+				connection.createStatement().executeUpdate("insert into feinstaub values (" + System.currentTimeMillis()
+						+ ", " + PM25 + ", " + PM10 + ")");
+			} catch (SQLException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+			try {
+				Thread.sleep(1000 * 29);
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
 		}
 	});
+	public static double PM25;
+	public static double PM10;
+	private Thread feinstaubCheck = new Thread(() -> {
+		while (true) {
+			String feinstaub = "";
+			try {
+				feinstaub = getFeinstaub();
+				feinstaub = feinstaub.replaceAll(" ", "");
+				PM25 = Double.parseDouble(feinstaub.split("X")[0]);
+				PM10 = Double.parseDouble(feinstaub.split("X")[1]);
+			} catch (Exception e) {
+			}
+			try {
+				Thread.sleep(1000 * 4);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+	});
+
+	public static String getFeinstaub() {
+		String output = "";
+		String s;
+		Process p;
+		try {
+			p = Runtime.getRuntime().exec("./staub.py");
+			BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+			while ((s = br.readLine()) != null)
+				output += s;
+			p.waitFor();
+			p.destroy();
+		} catch (Exception e) {
+		}
+		return output;
+	}
 
 	public TemperaturMesser() throws IOException {
 		try {
@@ -57,6 +104,7 @@ public class TemperaturMesser {
 			System.exit(0);
 		}
 		String createTemperatureTable = "CREATE TABLE if not exists `temperature` (	`date` BIGINT, `temperature1` INTEGER, `temperature2` INTEGER);";
+		String createFeinstaubTable = "CREATE TABLE if not exists `feinstaub` (	`date` BIGINT, `feinstaub1` INTEGER, `feinstaub2` INTEGER);";
 
 		Statement stat;
 		try {
@@ -69,7 +117,18 @@ public class TemperaturMesser {
 			System.exit(0);
 		}
 
+		try {
+			stat = connection.createStatement();
+			stat.executeUpdate(createFeinstaubTable);
+			System.out.println("[Info] Feinstaub Table created!");
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.out.println("[WARN] Feinstaub-Table konnte nicht erstellt werden!\nServer wird beendet...");
+			System.exit(0);
+		}
+
 		sensorCheck.start();
+		feinstaubCheck.start();
 		new HttpServer(8080, this);
 		try {
 			String command = "python /home/pi/termo/drawip.py";
