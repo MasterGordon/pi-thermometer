@@ -1,8 +1,10 @@
 package me.mastergordon.temperaturmesser;
 
 import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.sql.Connection;
@@ -12,11 +14,15 @@ import java.sql.Statement;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
+
 public class TemperaturMesser {
 
 	private Connection connection;
-	static String sensorPath1 = "/sys/bus/w1/devices/28-0517b11476ff";
-	static String sensorPath2 = "/sys/bus/w1/devices/28-0517b11000ff";
+	static String sensorPath1;
+	static String sensorPath2;
 	private static final Pattern PATTERNTEL = Pattern.compile("\\st=\\d*");
 	private Thread sensorCheck = new Thread(() -> {
 		while (true) {
@@ -89,11 +95,27 @@ public class TemperaturMesser {
 			p.waitFor();
 			p.destroy();
 		} catch (Exception e) {
+			e.printStackTrace();
 		}
 		return output;
 	}
 
 	public TemperaturMesser() throws IOException {
+
+		JSONParser parser = new JSONParser();
+
+		try (Reader reader = new FileReader("/home/pi/termo/settings.json")) {
+
+			JSONObject jsonObject = (JSONObject) parser.parse(reader);
+
+			sensorPath1 = (String) jsonObject.get("sensor1");
+			sensorPath2 = (String) jsonObject.get("sensor2");
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (ParseException e) {
+			e.printStackTrace();
+		}
+
 		try {
 			connection = DriverManager.getConnection("jdbc:sqlite:temperature.db");
 			System.out.println("[Info] Connected to Database!");
